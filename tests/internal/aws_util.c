@@ -44,6 +44,28 @@
 #define S3_OBJECT_KEY_MIXED_TIMESTAMP "logs/2020/m/08/d/15/%q"
 #endif
 
+#define S3_KEY_FORMAT_FILE_PATH "logs/$TAG/$FILE_PATH"
+#define S3_OBJECT_KEY_FILE_PATH "logs/aa.bb.ccc/var/log/nginx/access.log.1.gz"
+
+#define S3_KEY_FORMAT_FILE_NAME "logs/$TAG/%Y/%m/%d/$FILE_NAME"
+#define S3_OBJECT_KEY_FILE_NAME "logs/aa.bb.ccc/2020/08/15/access.log.1.gz"
+
+#define S3_KEY_FORMAT_FILE_BOTH "logs/$FILE_PATH-$FILE_NAME"
+#define S3_OBJECT_KEY_FILE_BOTH "logs/var/log/nginx/access.log.1.gz-access.log.1.gz"
+
+/* Edge case tests for relative paths and dotted prefixes */
+#define S3_KEY_FORMAT_FILE_PATH_EDGE "logs/$FILE_PATH"
+#define FILE_PATH_RELATIVE "./logs/file.log"
+#define S3_OBJECT_KEY_RELATIVE "logs/logs/file.log"
+#define FILE_PATH_TRIPLE_DOT "...hidden/file.log"
+#define S3_OBJECT_KEY_TRIPLE_DOT "logs/hidden/file.log"
+#define FILE_PATH_PARENT "../../../etc/passwd"
+#define S3_OBJECT_KEY_PARENT "logs/etc/passwd"
+#define FILE_PATH_HIDDEN ".hidden"
+#define S3_OBJECT_KEY_HIDDEN "logs/hidden"
+#define FILE_PATH_MIXED_DOTS ".///logs/./file.log"
+#define S3_OBJECT_KEY_MIXED_DOTS "logs/logs/./file.log"
+
 #define NO_TAG ""
 #define TAG "aa.bb.ccc"
 #define MULTI_DELIMITER_TAG "aa.bb-ccc"
@@ -376,6 +398,139 @@ static void test_flb_get_s3_key_mixed_timestamp()
     flb_sds_destroy(s3_key_format);
 }
 
+static void test_flb_get_s3_key_file_path()
+{
+    flb_sds_t s3_key_format = NULL;
+    struct tm day = { 0, 0, 0, 15, 7, 120};
+    time_t t;
+
+    initialization_crutch();
+
+    mktime_utc(&day, &t);
+    s3_key_format = flb_get_s3_key(S3_KEY_FORMAT_FILE_PATH, t, TAG,
+                                   TAG_DELIMITER, 0, FILE_PATH);
+    TEST_CHECK(strcmp(s3_key_format, S3_OBJECT_KEY_FILE_PATH) == 0);
+
+    flb_sds_destroy(s3_key_format);
+}
+
+static void test_flb_get_s3_key_file_name()
+{
+    flb_sds_t s3_key_format = NULL;
+    struct tm day = { 0, 0, 0, 15, 7, 120};
+    time_t t;
+
+    initialization_crutch();
+
+    mktime_utc(&day, &t);
+    s3_key_format = flb_get_s3_key(S3_KEY_FORMAT_FILE_NAME, t, TAG,
+                                   TAG_DELIMITER, 0, FILE_PATH);
+    TEST_CHECK(strcmp(s3_key_format, S3_OBJECT_KEY_FILE_NAME) == 0);
+
+    flb_sds_destroy(s3_key_format);
+}
+
+static void test_flb_get_s3_key_file_both()
+{
+    flb_sds_t s3_key_format = NULL;
+    struct tm day = { 0, 0, 0, 15, 7, 120};
+    time_t t;
+
+    initialization_crutch();
+
+    mktime_utc(&day, &t);
+    s3_key_format = flb_get_s3_key(S3_KEY_FORMAT_FILE_BOTH, t, NO_TAG,
+                                   TAG_DELIMITER, 0, FILE_PATH);
+    TEST_CHECK(strcmp(s3_key_format, S3_OBJECT_KEY_FILE_BOTH) == 0);
+
+    flb_sds_destroy(s3_key_format);
+}
+
+/* Edge case: relative path with ./ prefix */
+static void test_flb_get_s3_key_relative_path()
+{
+    flb_sds_t s3_key_format = NULL;
+    struct tm day = { 0, 0, 0, 15, 7, 120};
+    time_t t;
+
+    initialization_crutch();
+
+    mktime_utc(&day, &t);
+    s3_key_format = flb_get_s3_key(S3_KEY_FORMAT_FILE_PATH_EDGE, t, NO_TAG,
+                                   TAG_DELIMITER, 0, FILE_PATH_RELATIVE);
+    TEST_CHECK(strcmp(s3_key_format, S3_OBJECT_KEY_RELATIVE) == 0);
+
+    flb_sds_destroy(s3_key_format);
+}
+
+/* Edge case: triple dot prefix */
+static void test_flb_get_s3_key_triple_dot()
+{
+    flb_sds_t s3_key_format = NULL;
+    struct tm day = { 0, 0, 0, 15, 7, 120};
+    time_t t;
+
+    initialization_crutch();
+
+    mktime_utc(&day, &t);
+    s3_key_format = flb_get_s3_key(S3_KEY_FORMAT_FILE_PATH_EDGE, t, NO_TAG,
+                                   TAG_DELIMITER, 0, FILE_PATH_TRIPLE_DOT);
+    TEST_CHECK(strcmp(s3_key_format, S3_OBJECT_KEY_TRIPLE_DOT) == 0);
+
+    flb_sds_destroy(s3_key_format);
+}
+
+/* Edge case: parent directory traversal */
+static void test_flb_get_s3_key_parent_traversal()
+{
+    flb_sds_t s3_key_format = NULL;
+    struct tm day = { 0, 0, 0, 15, 7, 120};
+    time_t t;
+
+    initialization_crutch();
+
+    mktime_utc(&day, &t);
+    s3_key_format = flb_get_s3_key(S3_KEY_FORMAT_FILE_PATH_EDGE, t, NO_TAG,
+                                   TAG_DELIMITER, 0, FILE_PATH_PARENT);
+    TEST_CHECK(strcmp(s3_key_format, S3_OBJECT_KEY_PARENT) == 0);
+
+    flb_sds_destroy(s3_key_format);
+}
+
+/* Edge case: hidden file (single dot prefix) */
+static void test_flb_get_s3_key_hidden_file()
+{
+    flb_sds_t s3_key_format = NULL;
+    struct tm day = { 0, 0, 0, 15, 7, 120};
+    time_t t;
+
+    initialization_crutch();
+
+    mktime_utc(&day, &t);
+    s3_key_format = flb_get_s3_key(S3_KEY_FORMAT_FILE_PATH_EDGE, t, NO_TAG,
+                                   TAG_DELIMITER, 0, FILE_PATH_HIDDEN);
+    TEST_CHECK(strcmp(s3_key_format, S3_OBJECT_KEY_HIDDEN) == 0);
+
+    flb_sds_destroy(s3_key_format);
+}
+
+/* Edge case: mixed dots and slashes */
+static void test_flb_get_s3_key_mixed_dots_slashes()
+{
+    flb_sds_t s3_key_format = NULL;
+    struct tm day = { 0, 0, 0, 15, 7, 120};
+    time_t t;
+
+    initialization_crutch();
+
+    mktime_utc(&day, &t);
+    s3_key_format = flb_get_s3_key(S3_KEY_FORMAT_FILE_PATH_EDGE, t, NO_TAG,
+                                   TAG_DELIMITER, 0, FILE_PATH_MIXED_DOTS);
+    TEST_CHECK(strcmp(s3_key_format, S3_OBJECT_KEY_MIXED_DOTS) == 0);
+
+    flb_sds_destroy(s3_key_format);
+}
+
 TEST_LIST = {
     { "parse_api_error" , test_flb_aws_error},
     { "flb_aws_endpoint" , test_flb_aws_endpoint},
@@ -391,5 +546,13 @@ TEST_LIST = {
     {"flb_get_s3_key_increment_index", test_flb_get_s3_key_increment_index},
     {"flb_get_s3_key_index_overflow", test_flb_get_s3_key_index_overflow},
     {"flb_get_s3_key_mixed_timestamp", test_flb_get_s3_key_mixed_timestamp},
+    {"flb_get_s3_key_file_path", test_flb_get_s3_key_file_path},
+    {"flb_get_s3_key_file_name", test_flb_get_s3_key_file_name},
+    {"flb_get_s3_key_file_both", test_flb_get_s3_key_file_both},
+    {"flb_get_s3_key_relative_path", test_flb_get_s3_key_relative_path},
+    {"flb_get_s3_key_triple_dot", test_flb_get_s3_key_triple_dot},
+    {"flb_get_s3_key_parent_traversal", test_flb_get_s3_key_parent_traversal},
+    {"flb_get_s3_key_hidden_file", test_flb_get_s3_key_hidden_file},
+    {"flb_get_s3_key_mixed_dots_slashes", test_flb_get_s3_key_mixed_dots_slashes},
     { 0 }
 };
